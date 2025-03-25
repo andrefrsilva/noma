@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tempo Sem a Mónica</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
+            min-height: 100vh;
+            font-family: 'Roboto', sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 90%;
+            margin: 2rem 0;
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #timer {
+            font-size: 2.5rem;
+            margin: 2rem 0;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .warning {
+            font-style: italic;
+            margin-top: 2rem;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            opacity: 0.9;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .heart {
+            color: #ff3860;
+            animation: pulse 1.5s infinite;
+            display: inline-block;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            #timer { font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tempo Sem a Mónica <span class="heart">♥</span></h1>
+        <div id="timer">A carregar...</div>
+        <p class="warning">
+            Se tiver notícias sobre o paradeiro da Mónica, por favor, contacte as autoridades.<br>
+            Trata-se duma pessoa altamente perigosa, mas que deixa saudades por onde passa).
+        </p>
+    </div>
+
+    <script>
+        async function fetchTimestamp() {
+            try {
+                const response = await fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vTkcmxF8UyHdfREth1T0D0P-tjJLAR6iiKJiaoFdc2TCmW_NBIqDQsz_7cE3Sh4a9sH1-KaNO3gOMKW/pub?output=xlsx');
+                const data = await response.arrayBuffer();
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const cellAddress = XLSX.utils.encode_cell({c: 0, r: 0}); // A1
+                const cell = firstSheet[cellAddress];
+                
+                // Converter o formato do Excel para JavaScript Date
+                if (cell.t === 'n') { // Número (data do Excel)
+                    const excelDate = cell.v;
+                    const date = XLSX.SSF.parse_date_code(excelDate);
+                    return new Date(
+                        date.y,
+                        date.m - 1, // Meses são 0-based no JavaScript
+                        date.d,
+                        date.H,
+                        date.M,
+                        date.S
+                    );
+                } else if (cell.t === 's') { // String
+                    return new Date(cell.v);
+                }
+                
+                throw new Error('Formato de data desconhecido');
+            } catch (error) {
+                console.error('Erro:', error);
+                return null;
+            }
+        }
+
+        function formatDuration(seconds) {
+            const dias = Math.floor(seconds / (3600 * 24));
+            seconds -= dias * 3600 * 24;
+            const horas = Math.floor(seconds / 3600);
+            seconds -= horas * 3600;
+            const minutos = Math.floor(seconds / 60);
+            seconds = Math.floor(seconds % 60);
+
+            const parts = [];
+            if (dias > 0) parts.push(`${dias} dia${dias !== 1 ? 's' : ''}`);
+            if (horas > 0) parts.push(`${horas} hora${horas !== 1 ? 's' : ''}`);
+            if (minutos > 0) parts.push(`${minutos} minuto${minutos !== 1 ? 's' : ''}`);
+            if (seconds >= 0) parts.push(`${seconds} segundo${seconds !== 1 ? 's' : ''}`);
+
+            return parts.join(', ').replace(/, ([^,]*)$/, ' e $1');
+        }
+
+        async function updateTimer() {
+            try {
+                const targetDate = await fetchTimestamp();
+                if (!targetDate || isNaN(targetDate)) {
+                    document.getElementById('timer').textContent = 'Data inválida';
+                    return;
+                }
+
+                const now = new Date();
+                const diff = Math.floor((now - targetDate) / 1000);
+                
+                if (diff < 0) {
+                    document.getElementById('timer').textContent = 'Ainda não começou!';
+                    return;
+                }
+
+                document.getElementById('timer').textContent = formatDuration(diff);
+                console.log('Data lida:', targetDate.toLocaleString('pt-PT')); // Para debug
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+        }
+
+        // Atualizar imediatamente e a cada segundo
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    </script>
+</body>
+</html>
